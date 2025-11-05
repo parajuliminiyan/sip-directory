@@ -88,7 +88,3 @@ Open [http://localhost:3000](http://localhost:3000) to view the application.
 - **Compare** - Side-by-side comparison of two SIPs
 - **Statistics** - Aggregated data by category, OS, supplier, manufacturer
 - **Categories** - Support for Appliances and Wearables (expandable)
-
-## License
-
-This is a Master's Capstone Project.
