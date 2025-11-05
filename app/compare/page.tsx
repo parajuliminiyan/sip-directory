@@ -56,7 +56,6 @@ export default function ComparePage() {
 
   const [leftSIP, setLeftSIP] = useState<SIP | null>(null)
   const [rightSIP, setRightSIP] = useState<SIP | null>(null)
-  const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const leftSlug = searchParams.get('left') || ''
@@ -65,7 +64,6 @@ export default function ComparePage() {
   useEffect(() => {
     const fetchSIPs = async () => {
       try {
-        setLoading(true)
         setError(null)
 
         // Fetch left SIP if slug exists
@@ -96,8 +94,6 @@ export default function ComparePage() {
       } catch (err) {
         console.error('Error fetching SIPs:', err)
         setError('Failed to load products for comparison')
-      } finally {
-        setLoading(false)
       }
     }
 

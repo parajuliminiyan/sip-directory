@@ -21,7 +21,6 @@ import {
   Legend,
   ResponsiveContainer,
 } from 'recharts'
-import { formatCurrency } from '@/lib/utils'
 import { TrendingUp, Package, Cpu, Code } from 'lucide-react'
 
 interface StatsData {

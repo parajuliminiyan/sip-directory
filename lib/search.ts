@@ -26,9 +26,10 @@ export async function initializeSearchIndex() {
       const collection = await client.collections(SIP_COLLECTION).retrieve();
       console.log('Search collection already exists:', collection.name);
       return collection;
-    } catch (error: any) {
+    } catch (error) {
       // If collection doesn't exist (404), create it
-      if (error.httpStatus === 404) {
+      const typedError = error as { httpStatus?: number };
+      if (typedError.httpStatus === 404) {
         console.log('Creating new search collection...');
       } else {
         throw error;
@@ -64,7 +65,8 @@ export async function initializeSearchIndex() {
       default_sorting_field: 'costMinUSD',
     };
 
-    const collection = await client.collections().create(schema);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const collection = await client.collections().create(schema as any);
     console.log('Search collection created successfully:', collection.name);
     return collection;
   } catch (error) {
@@ -80,8 +82,9 @@ export async function resetSearchIndex() {
   try {
     await client.collections(SIP_COLLECTION).delete();
     console.log('Deleted existing search collection');
-  } catch (error: any) {
-    if (error.httpStatus !== 404) {
+  } catch (error) {
+    const typedError = error as { httpStatus?: number };
+    if (typedError.httpStatus !== 404) {
       throw error;
     }
   }

@@ -1,6 +1,19 @@
 import { NextResponse } from 'next/server';
 import { searchClient, SIP_COLLECTION } from '@/lib/search';
 
+interface TypesenseDocument {
+  id: string;
+  name: string;
+  slug: string;
+  categories?: string[];
+  shortSummary?: string;
+}
+
+interface TypesenseHit {
+  document: TypesenseDocument;
+  highlights?: Array<{ snippet?: string }>;
+}
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -24,7 +37,7 @@ export async function GET(request: Request) {
       .documents()
       .search(typesenseParams);
 
-    const suggestions = (results.hits || []).map((hit: any) => ({
+    const suggestions = (results.hits as TypesenseHit[] || []).map((hit) => ({
       id: hit.document.id,
       name: hit.document.name,
       slug: hit.document.slug,

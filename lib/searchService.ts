@@ -34,11 +34,27 @@ interface SearchResponse {
   };
 }
 
+interface TypesenseDocument {
+  id: string;
+  name: string;
+  slug: string;
+  shortSummary?: string;
+  costMinUSD?: number;
+  costMaxUSD?: number;
+  manufacturer?: string;
+  supplier?: string;
+  categories: string[];
+  oses: string[];
+}
+
+interface TypesenseHit {
+  document: TypesenseDocument;
+}
+
 /**
  * Search SIPs using Typesense with fallback to Postgres
  */
 export async function searchSIPs(params: SearchParams): Promise<SearchResponse> {
-  const { query = '', category = '', os = '', productType = [], page = 1, pageSize = 20 } = params;
 
   // Try Typesense first
   try {
@@ -100,7 +116,7 @@ async function searchWithTypesense(params: SearchParams): Promise<SearchResponse
     .documents()
     .search(searchParams);
 
-  const results: SearchResult[] = (searchResults.hits || []).map((hit: any) => ({
+  const results: SearchResult[] = (searchResults.hits as TypesenseHit[] || []).map((hit) => ({
     id: hit.document.id,
     name: hit.document.name,
     slug: hit.document.slug,
