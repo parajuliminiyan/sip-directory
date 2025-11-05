@@ -18,7 +18,7 @@ const DATA_SOURCES: Record<string, SourceFetcher> = {
   // EXISTING SOURCES - DO NOT MODIFY
   'apache-projects': {
     name: 'Apache Projects',
-    fetch: fetchApacheProjects,
+    fetch: fetchApacheProjects, 
   },
   'freertos-devices': {
     name: 'FreeRTOS Devices',
