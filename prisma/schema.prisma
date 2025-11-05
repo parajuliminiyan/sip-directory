@@ -1,0 +1,178 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model SIP {
+  id              String        @id @default(cuid())
+  name            String        @unique
+  slug            String        @unique
+  shortSummary    String?
+  description     String?
+  costMinUSD      Int?          // store in cents for precision
+  costMaxUSD      Int?
+  supplierId      String?
+  manufacturerId  String?
+  scrapedAt       DateTime?     // when data was last scraped from source
+  dataSource      String?       // 'scraped', 'curated', or 'manual'
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  supplier        Supplier?     @relation(fields: [supplierId], references: [id])
+  manufacturer    Manufacturer? @relation(fields: [manufacturerId], references: [id])
+  versions        Version[]
+  components      Component[]
+  categories      SIP_Category[]
+  oses            SIP_OS[]
+  dependencies    Dependency[]  @relation("SIPDependencies")
+  dependents      Dependency[]  @relation("SIPDependents")
+
+  @@index([slug])
+  @@index([supplierId])
+  @@index([manufacturerId])
+}
+
+model Supplier {
+  id    String  @id @default(cuid())
+  name  String  @unique
+  url   String?
+  sips  SIP[]
+}
+
+model Manufacturer {
+  id    String  @id @default(cuid())
+  name  String  @unique
+  url   String?
+  sips  SIP[]
+}
+
+model Category {
+  id    String         @id @default(cuid())
+  name  String         @unique  // Appliances, Wearables, Cars, etc.
+  sips  SIP_Category[]
+}
+
+model SIP_Category {
+  sipId      String
+  categoryId String
+  assignedAt DateTime @default(now())
+
+  sip      SIP      @relation(fields: [sipId], references: [id], onDelete: Cascade)
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([sipId, categoryId])
+  @@index([categoryId])
+}
+
+model OperatingSystem {
+  id    String    @id @default(cuid())
+  name  String    @unique  // FreeRTOS, NuttX, Linux, Zephyr, etc.
+  sips  SIP_OS[]
+}
+
+model SIP_OS {
+  sipId String
+  osId  String
+
+  sip SIP             @relation(fields: [sipId], references: [id], onDelete: Cascade)
+  os  OperatingSystem @relation(fields: [osId], references: [id], onDelete: Cascade)
+
+  @@id([sipId, osId])
+  @@index([osId])
+}
+
+model Version {
+  id         String    @id @default(cuid())
+  sipId      String
+  name       String    // e.g., "1.3.2"
+  releasedAt DateTime?
+  notes      String?
+
+  sip SIP @relation(fields: [sipId], references: [id], onDelete: Cascade)
+
+  @@index([sipId])
+}
+
+model Component {
+  id       String        @id @default(cuid())
+  sipId    String
+  type     ComponentType // HARDWARE or SOFTWARE
+  name     String
+  spec     String?
+  required Boolean       @default(true)
+
+  sip SIP @relation(fields: [sipId], references: [id], onDelete: Cascade)
+
+  @@index([sipId, type])
+}
+
+enum ComponentType {
+  HARDWARE
+  SOFTWARE
+}
+
+model Dependency {
+  id          String @id @default(cuid())
+  sipId       String
+  dependsOnId String
+
+  sip       SIP @relation("SIPDependencies", fields: [sipId], references: [id], onDelete: Cascade)
+  dependsOn SIP @relation("SIPDependents", fields: [dependsOnId], references: [id], onDelete: Cascade)
+
+  @@unique([sipId, dependsOnId])
+  @@index([dependsOnId])
+}
+
+// NextAuth.js models
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  role          String    @default("user")
+  accounts      Account[]
+  sessions      Session[]
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
