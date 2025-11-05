@@ -1,27 +1,38 @@
-import { NextResponse } from 'next/server';
-import { searchClient, SIP_COLLECTION } from '@/lib/search';
+import { NextResponse } from 'next/server'
+import { searchClient, SIP_COLLECTION } from '@/lib/search'
+
+export const dynamic = 'force-dynamic'
 
 interface TypesenseDocument {
-  id: string;
-  name: string;
-  slug: string;
-  categories?: string[];
-  shortSummary?: string;
+  id: string
+  name: string
+  slug: string
+  categories?: string[]
+  shortSummary?: string
 }
 
 interface TypesenseHit {
-  document: TypesenseDocument;
-  highlights?: Array<{ snippet?: string }>;
+  document: TypesenseDocument
+  highlights?: Array<{ snippet?: string }>
 }
 
 export async function GET(request: Request) {
   try {
-    const { searchParams } = new URL(request.url);
-    const query = searchParams.get('q');
+    const { searchParams } = new URL(request.url)
+    const query = searchParams.get('q')
 
     if (!query || query.trim().length === 0) {
+      return NextResponse.json({ suggestions: [] })
+    }
+    
+    if (!searchClient) {
+      console.warn("Typesense client not initialized. Returning empty results.");
+      // Return a successful but empty response for now, 
+      // or a 503 error if you prefer a stricter response:
+      // return NextResponse.json({ error: 'Search service unavailable.' }, { status: 503 });
       return NextResponse.json({ suggestions: [] });
     }
+   
 
     // Use Typesense search
     const typesenseParams = {
@@ -30,25 +41,25 @@ export async function GET(request: Request) {
       per_page: 5,
       highlight_fields: 'name',
       highlight_full_fields: 'name',
-    };
+    }
 
     const results = await searchClient
       .collections(SIP_COLLECTION)
       .documents()
-      .search(typesenseParams);
+      .search(typesenseParams)
 
-    const suggestions = (results.hits as TypesenseHit[] || []).map((hit) => ({
+    const suggestions = ((results.hits as TypesenseHit[]) || []).map((hit) => ({
       id: hit.document.id,
       name: hit.document.name,
       slug: hit.document.slug,
       categories: hit.document.categories || [],
       shortSummary: hit.document.shortSummary || null,
       highlightedName: hit.highlights?.[0]?.snippet || hit.document.name,
-    }));
+    }))
 
-    return NextResponse.json({ suggestions });
+    return NextResponse.json({ suggestions })
   } catch (error) {
-    console.error('Suggestion search error:', error);
-    return NextResponse.json({ error: 'Failed to fetch suggestions' }, { status: 500 });
+    console.error('Suggestion search error:', error)
+    return NextResponse.json({ error: 'Failed to fetch suggestions' }, { status: 500 })
   }
 }

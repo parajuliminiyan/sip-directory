@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams
@@ -65,7 +67,9 @@ export async function GET(request: NextRequest) {
 
     // Average cost per category
     const avgCostPerCategory = category
-      ? await prisma.$queryRaw<Array<{ category: string; avgMin: number | null; avgMax: number | null }>>`
+      ? await prisma.$queryRaw<
+          Array<{ category: string; avgMin: number | null; avgMax: number | null }>
+        >`
           SELECT
             c.name as category,
             AVG(s."costMinUSD")::numeric as "avgMin",
@@ -77,7 +81,9 @@ export async function GET(request: NextRequest) {
           GROUP BY c.name
           ORDER BY c.name
         `
-      : await prisma.$queryRaw<Array<{ category: string; avgMin: number | null; avgMax: number | null }>>`
+      : await prisma.$queryRaw<
+          Array<{ category: string; avgMin: number | null; avgMax: number | null }>
+        >`
           SELECT
             c.name as category,
             AVG(s."costMinUSD")::numeric as "avgMin",
