@@ -1,6 +1,6 @@
 # SIP Directory
 
-A production-ready **Software Intensive Products (SIP) Directory** - a searchable database allowing engineers, managers, product owners, designers, and end-users to discover and compare software-intensive products with detailed hardware/software component information.
+ **Software Intensive Products (SIP) Directory** - a searchable database allowing engineers, managers, product owners, designers, and end-users to discover and compare software-intensive products with detailed hardware/software component information.
 
 ## Tech Stack
 
