@@ -2,12 +2,19 @@ import { BaseScraper } from '../../scraper-base';
 import { SIPData } from '../../../types';
 import { slugify } from '../../../utils';
 
+/**
+ * Fitbit Scraper (Google-owned)
+ * Real-time scraping of Fitbit product pages
+ * Returns null if scraping fails - no fallback data
+ */
 export class FitbitScraper extends BaseScraper {
   constructor() {
     super('https://www.fitbit.com', 'Fitbit');
   }
 
   async getProductListings(): Promise<string[]> {
+    // Fitbit has a simpler product lineup, hardcoded URLs for now
+    // Could be enhanced to dynamically discover products from /shop page
     return [
       'https://www.fitbit.com/global/us/products/trackers/charge6',
       'https://www.fitbit.com/global/us/products/smartwatches/sense2',
@@ -16,76 +23,132 @@ export class FitbitScraper extends BaseScraper {
   }
 
   async scrapeProduct(url: string): Promise<SIPData | null> {
-    const products: SIPData[] = [
-      {
-        name: 'Fitbit Charge 6',
-        slug: slugify('Fitbit Charge 6'),
-        shortSummary: 'Advanced fitness tracker with built-in GPS and Google integration',
-        description: 'Fitbit Charge 6 offers continuous heart rate monitoring, built-in GPS, stress management tools, and seamless Google integration including YouTube Music controls and Google Maps.',
-        costMinUSD: 15999,
-        costMaxUSD: 15999,
-        manufacturer: 'Fitbit',
-        supplier: 'Google',
-        categories: ['Wearables'],
-        operatingSystems: ['Fitbit OS'],
-        versions: [],
-        components: [
-          { type: 'HARDWARE', name: 'Multi-path Optical Heart Rate Sensor', required: true },
-          { type: 'HARDWARE', name: 'GPS', spec: 'Built-in GPS + GLONASS', required: true },
-          { type: 'HARDWARE', name: 'EDA Sensor', spec: 'Electrodermal activity', required: true },
-          { type: 'HARDWARE', name: 'SpO2 Sensor', required: true },
-          { type: 'SOFTWARE', name: 'Google Fit Integration', required: true },
-        ],
-        dependencies: [],
-      },
-      {
-        name: 'Fitbit Sense 2',
-        slug: slugify('Fitbit Sense 2'),
-        shortSummary: 'Advanced health smartwatch with stress management and ECG',
-        description: 'Fitbit Sense 2 focuses on holistic health with continuous EDA scanning for stress, ECG app, skin temperature sensing, and comprehensive sleep tracking.',
-        costMinUSD: 29995,
-        costMaxUSD: 29995,
-        manufacturer: 'Fitbit',
-        supplier: 'Google',
-        categories: ['Wearables'],
-        operatingSystems: ['Fitbit OS'],
-        versions: [],
-        components: [
-          { type: 'HARDWARE', name: 'cEDA Sensor', spec: 'Continuous electrodermal activity', required: true },
-          { type: 'HARDWARE', name: 'ECG Sensor', required: true },
-          { type: 'HARDWARE', name: 'Skin Temperature Sensor', required: true },
-          { type: 'HARDWARE', name: 'AMOLED Display', required: true },
-        ],
-        dependencies: [],
-      },
-      {
-        name: 'Fitbit Versa 4',
-        slug: slugify('Fitbit Versa 4'),
-        shortSummary: 'Versatile fitness smartwatch with built-in GPS and long battery life',
-        description: 'Fitbit Versa 4 combines fitness tracking essentials with built-in GPS, 6+ day battery life, and 40+ exercise modes.',
-        costMinUSD: 22995,
-        costMaxUSD: 22995,
-        manufacturer: 'Fitbit',
-        supplier: 'Google',
-        categories: ['Wearables'],
-        operatingSystems: ['Fitbit OS'],
-        versions: [],
-        components: [
-          { type: 'HARDWARE', name: 'Optical Heart Rate Sensor', required: true },
-          { type: 'HARDWARE', name: 'GPS', spec: 'Built-in GPS', required: true },
-          { type: 'HARDWARE', name: 'AMOLED Display', required: true },
-          { type: 'HARDWARE', name: 'SpO2 Sensor', required: true },
-        ],
-        dependencies: [],
-      },
-    ];
+    try {
+      // Try to fetch with Playwright first (Fitbit uses JavaScript rendering)
+      let $ = await this.fetchHTMLWithBrowser(url);
 
-    for (const product of products) {
-      if (url.toLowerCase().includes(product.slug)) {
-        return product;
+      // Fallback to regular fetch if browser fails
+      if (!$) {
+        console.warn(`Browser fetch failed for ${url}, trying regular fetch...`);
+        $ = await this.fetchHTML(url);
       }
-    }
 
-    return null;
+      if (!$) {
+        console.warn(`All fetch methods failed for ${url}`);
+        return null;
+      }
+
+      // Extract product data
+      const title = $('meta[property="og:title"]').attr('content') ||
+                    $('h1[class*="product"]').first().text().trim() ||
+                    $('h1').first().text().trim();
+
+      // Use enhanced description extraction
+      const { shortSummary, description, technicalSpecs } = this.extractDetailedDescription($);
+
+      // Extract price with advanced method
+      let priceMin = null;
+      let priceMax = null;
+
+      // Try JSON-LD structured data first
+      $('script[type="application/ld+json"]').each((_, el) => {
+        try {
+          const jsonLd = JSON.parse($(el).html() || '{}');
+          if (jsonLd['@type'] === 'Product' && jsonLd.offers) {
+            const offers = Array.isArray(jsonLd.offers) ? jsonLd.offers : [jsonLd.offers];
+            const prices = offers.map((offer: any) => {
+              const price = offer.price || offer.lowPrice;
+              return price ? parseFloat(price) * 100 : null;
+            }).filter((p: any) => p !== null);
+
+            if (prices.length > 0) {
+              priceMin = Math.min(...prices);
+              priceMax = Math.max(...prices);
+            }
+          }
+        } catch (e) {
+          // Ignore JSON parse errors
+        }
+      });
+
+      // If no price from JSON-LD, use advanced price extraction (includes Buy buttons)
+      if (!priceMin) {
+        const advancedPrices = this.extractPriceAdvanced($);
+        priceMin = advancedPrices.min;
+        priceMax = advancedPrices.max;
+      }
+
+      // Extract specs/components
+      const components: Array<{ type: 'HARDWARE' | 'SOFTWARE'; name: string; spec?: string; required: boolean }> = [];
+
+      $('[class*="spec"] li, [class*="feature"] li, .product-specs li, [class*="detail"] li').each((_, el) => {
+        const text = $(el).text().trim();
+        if (text && text.length > 0 && text.length < 200) {
+          const parts = text.split(':');
+          if (parts.length === 2) {
+            components.push({
+              type: 'HARDWARE',
+              name: parts[0].trim(),
+              spec: parts[1].trim(),
+              required: true,
+            });
+          } else {
+            components.push({
+              type: 'HARDWARE',
+              name: text,
+              required: true,
+            });
+          }
+        }
+      });
+
+      // If we have technical specs, add them to components
+      if (technicalSpecs) {
+        const specsArray = technicalSpecs.split('|').map(s => s.trim()).filter(s => s.length > 0);
+        specsArray.forEach(spec => {
+          components.push({
+            type: 'HARDWARE',
+            name: spec.split(':')[0]?.trim() || spec,
+            spec: spec.includes(':') ? spec.split(':')[1]?.trim() : undefined,
+            required: true,
+          });
+        });
+      }
+
+      // Validate that we have minimum required data
+      if (!title || title.length === 0 || title.includes('fitbit.com')) {
+        console.warn(`Failed to extract valid title from ${url}`);
+        return null;
+      }
+
+      if (!priceMin) {
+        console.warn(`Failed to extract price from ${url}`);
+        return null;
+      }
+
+      console.log(`✓ Successfully scraped: ${title}`);
+
+      return {
+        name: title,
+        slug: slugify(title),
+        shortSummary: shortSummary || description?.substring(0, 250) || undefined,
+        description: description || undefined,
+        costMinUSD: priceMin,
+        costMaxUSD: priceMax || priceMin,
+        manufacturer: 'Fitbit',
+        supplier: 'Google',
+        scrapedAt: new Date(),
+        dataSource: 'scraped',
+        categories: ['Wearables'],
+        operatingSystems: ['Fitbit OS'],
+        versions: [],
+        components: components.length > 0 ? components : [],
+        dependencies: [],
+      };
+
+    } catch (error) {
+      console.error(`Error scraping ${url}:`, error);
+      return null;
+    }
   }
 }
